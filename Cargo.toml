@@ -1,0 +1,14 @@
+[package]
+name = "wy"
+version = "1.0.0"
+authors = ["Douman <douman@gmx.se>"]
+edition = "2018"
+repository = "https://github.com/DoumanAsh/wyhash"
+documentation = "https://docs.rs/wyhash/"
+categories = ["no-std"]
+keywords = ["hash", "wyhash", "PRNG"]
+readme = "README.md"
+description = "Rust implementation of wyhash algorithms"
+license = "BSL-1.0"
+
+[dependencies]
