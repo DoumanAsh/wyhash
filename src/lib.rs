@@ -8,7 +8,38 @@ mod utils;
 
 use utils::*;
 
+use core::sync::atomic::{AtomicU64, Ordering};
+
 const DEFAULT_SECRET: [u64; 5] = [0xa0761d6478bd642f, 0xe7037ed1a0b428db, 0x8ebc6af09c88c6e3, 0x589965cc75374cc3, 0x1d8e4e27c47d124f];
+
+///Generates random number with specified seed.
+///
+///Do note that the same number is generated for each seed value.
+///
+///User must modify `seed` value to generate new unique value.
+///
+///Not intended to be used normally, instead you should use [Random](struct.Random.html) or [AtomicRandom](struct.AtomicRandom.html)
+pub fn random(seed: u64) -> u64 {
+    const SEED_EXTRA: u64 = DEFAULT_SECRET[1];
+    let mut seed_extra = seed ^ SEED_EXTRA;
+
+    #[cfg(target_pointer_width = "32")]
+    {
+        seed_extra *= (seed_extra >> 32) | (seed_extra << 32);
+
+        (seed * ((seed >> 32) | (seed << 32 ))) ^ ((seed_extra >> 32) | (seed_extra << 32))
+    }
+
+    #[cfg(target_pointer_width = "64")]
+    {
+        let mut seed = seed;
+
+        let seeds = u128::from(seed) * u128::from(seed_extra);
+        seed = seeds as u64;
+        seed_extra = (seeds >> 64) as u64;
+        seed ^ seed_extra
+    }
+}
 
 ///Wyhash based PRNG.
 pub struct Random {
@@ -30,30 +61,46 @@ impl Random {
         self.seed
     }
 
+    #[inline(always)]
     ///Generates new number
     pub fn gen(&mut self) -> u64 {
         const SEED_MOD: u64 = DEFAULT_SECRET[0];
-        const SEED_EXTRA: u64 = DEFAULT_SECRET[1];
 
         self.seed = self.seed.wrapping_add(SEED_MOD);
-        let mut seed_extra = self.seed ^ SEED_EXTRA;
+        random(self.seed)
+    }
+}
 
-        #[cfg(target_pointer_width = "32")]
-        {
-            seed_extra *= (seed_extra >> 32) | (seed_extra << 32);
+///Atomic Wyhash based PRNG.
+///
+///Comparing to plain [Random](struct.Random.html) it stores seed in atomic
+///allowing it to be used concurrently.
+pub struct AtomicRandom {
+    seed: AtomicU64,
+}
 
-            (self.seed * ((self.seed >> 32) | (self.seed << 32 ))) ^ ((seed_extra >> 32) | (seed_extra << 32))
+impl AtomicRandom {
+    #[inline(always)]
+    ///Creates new instance with supplied seed.
+    pub const fn new(seed: u64) -> Self {
+        Self {
+            seed: AtomicU64::new(seed)
         }
+    }
 
-        #[cfg(target_pointer_width = "64")]
-        {
-            let mut seed = self.seed;
+    #[inline(always)]
+    ///Consumes self returning current seed.
+    pub fn into_seed(self) -> u64 {
+        self.seed.into_inner()
+    }
 
-            let seeds = u128::from(seed) * u128::from(seed_extra);
-            seed = seeds as u64;
-            seed_extra = (seeds >> 64) as u64;
-            seed ^ seed_extra
-        }
+    #[inline(always)]
+    ///Generates new number
+    pub fn gen(&self) -> u64 {
+        const SEED_MOD: u64 = DEFAULT_SECRET[0];
+
+        self.seed.fetch_add(SEED_MOD, Ordering::SeqCst);
+        random(self.seed.load(Ordering::SeqCst))
     }
 }
 
