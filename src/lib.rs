@@ -11,6 +11,7 @@ use utils::*;
 use core::sync::atomic::{AtomicU64, Ordering};
 
 const DEFAULT_SECRET: [u64; 5] = [0xa0761d6478bd642f, 0xe7037ed1a0b428db, 0x8ebc6af09c88c6e3, 0x589965cc75374cc3, 0x1d8e4e27c47d124f];
+const SEED_MOD: u64 = DEFAULT_SECRET[0];
 
 ///Generates random number with specified seed.
 ///
@@ -64,8 +65,6 @@ impl Random {
     #[inline(always)]
     ///Generates new number
     pub fn gen(&mut self) -> u64 {
-        const SEED_MOD: u64 = DEFAULT_SECRET[0];
-
         self.seed = self.seed.wrapping_add(SEED_MOD);
         random(self.seed)
     }
@@ -84,7 +83,7 @@ impl AtomicRandom {
     ///Creates new instance with supplied seed.
     pub const fn new(seed: u64) -> Self {
         Self {
-            seed: AtomicU64::new(seed)
+            seed: AtomicU64::new(seed.wrapping_add(SEED_MOD))
         }
     }
 
@@ -97,10 +96,11 @@ impl AtomicRandom {
     #[inline(always)]
     ///Generates new number
     pub fn gen(&self) -> u64 {
-        const SEED_MOD: u64 = DEFAULT_SECRET[0];
-
-        self.seed.fetch_add(SEED_MOD, Ordering::SeqCst);
-        random(self.seed.load(Ordering::SeqCst))
+        //We increment initially on creation.
+        //This way, previous value is always modified seed.
+        //And `add` stores next seed value to use.
+        let seed = self.seed.fetch_add(SEED_MOD, Ordering::SeqCst);
+        random(seed)
     }
 }
 
