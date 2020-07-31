@@ -94,6 +94,12 @@ impl AtomicRandom {
     }
 
     #[inline(always)]
+    ///Sets new seed value.
+    pub fn set_seed(&self, seed: u64) {
+        self.seed.swap(seed.wrapping_add(SEED_MOD), Ordering::SeqCst);
+    }
+
+    #[inline(always)]
     ///Generates new number
     pub fn gen(&self) -> u64 {
         //We increment initially on creation.
